@@ -1228,6 +1228,7 @@ body::after {
 
 .section-cluster .cases-grid {
   margin-top: 16px;
+  grid-template-columns: 1fr;
 }
 
 .bucket-must {
@@ -1335,7 +1336,7 @@ body::after {
 }
 
 .case-study-card {
-  grid-template-columns: minmax(340px, 46%) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1.55fr) minmax(300px, 0.95fr);
   align-items: stretch;
 }
 
@@ -1346,9 +1347,17 @@ body::after {
 
 .case-study-card .thumb-button img {
   height: 100%;
-  min-height: 320px;
-  padding: 14px;
+  min-height: 380px;
+  padding: 18px;
   aspect-ratio: auto;
+}
+
+.section-cluster .case-study-card {
+  grid-template-columns: minmax(0, 1.9fr) minmax(280px, 0.85fr);
+}
+
+.section-cluster .case-study-card .thumb-button img {
+  min-height: 460px;
 }
 
 .card-body {
