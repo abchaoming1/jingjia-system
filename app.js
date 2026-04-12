@@ -6,6 +6,13 @@ const DECISION_OPTIONS = [
   { value: "watch", label: "观察" },
   { value: "skip", label: "不做" },
 ];
+const CASE_WORKFLOW_SHORTCUTS = [
+  { label: "等回落", field: "miniReview", value: "等回落确认承接后再接。" },
+  { label: "只前排", field: "miniReview", value: "只做前排和最先上板，不碰后排跟风。" },
+  { label: "看承接", field: "note", value: "重点看回落后的承接是否接得住。" },
+  { label: "题材弱不接", field: "note", value: "题材强度不够，除非盘中转强，否则不接。" },
+  { label: "次日兑现", field: "miniReview", value: "次日按冲高兑现流程处理，不恋战。" },
+];
 const PATTERN_KEYWORDS = [
   "一字",
   "弱转强",
@@ -258,6 +265,22 @@ function normalizeForMatch(value = "") {
 
 function normalizeTagList(raw = "") {
   return [...new Set(String(raw).split(/[\s,，、/]+/).map((item) => item.trim()).filter(Boolean))].slice(0, 12);
+}
+
+function appendUniqueLine(existing = "", addition = "") {
+  const nextLine = String(addition).trim();
+  if (!nextLine) {
+    return String(existing || "");
+  }
+
+  const current = String(existing || "").trim();
+  if (!current) {
+    return nextLine;
+  }
+  if (current.includes(nextLine)) {
+    return current;
+  }
+  return `${current}\n${nextLine}`;
 }
 
 function escapeRegExp(value = "") {
@@ -608,15 +631,15 @@ function renderDailyEntry(data) {
   root.innerHTML = [
     {
       title: "今日复盘入口",
-      body: "先筛选，再判断今天重点刷哪一类，再决定今天不看哪一类。首页先给动作，不先给信息洪水。",
+      body: "先筛选，再定今天先刷哪一类。",
       links: [
         { label: "打开筛选台", href: "#search-workbench" },
-        { label: "第一部分", href: "#part-basics" },
+        { label: "五类清单", href: "#cases-playbook" },
       ],
     },
     {
       title: "核心口诀与禁做",
-      body: "今天脑子只要记住两件事：什么结构一定不做，什么结构一定优先看。先剔除垃圾，再谈执行。",
+      body: "先剔除禁做，再优先看一定要做。",
       links: [
         { label: "五大清单", href: "#cases-playbook" },
         { label: "禁做 / 一定要做", href: "#cases-group-bar" },
@@ -624,17 +647,16 @@ function renderDailyEntry(data) {
     },
     {
       title: "第一部分操作手册",
-      body: "第一部分继续保留，但会更像操作手册。先把仓位、买点、卖点和术语钉住，再去刷案例。",
+      body: "先把仓位、买点、卖点钉住，再去刷案例。",
       links: [
         { label: "导读与结构", href: `#${escapeHtml(data.basics.chapters[0].id)}` },
         { label: "复盘模板", href: reviewTemplateCards[0] ? `#card-${escapeHtml(reviewTemplateCards[0])}` : "#part-basics" },
-        { label: "第二部分", href: "#part-cases" },
       ],
     },
   ]
     .map(
       (item) => `
-        <article>
+        <article class="quick-entry-card">
           <h3>${escapeHtml(item.title)}</h3>
           <p>${escapeHtml(item.body)}</p>
           <div class="quick-links">
@@ -659,7 +681,7 @@ function renderHeroSupport(data) {
     <span class="kicker">今日入口</span>
     <h3>今天先动哪几步</h3>
     <ol class="support-list ordered">
-      ${executionSteps.slice(0, 3).map((step) => `<li>${formatRichText(step)}</li>`).join("")}
+      ${executionSteps.slice(0, 2).map((step) => `<li>${formatRichText(step)}</li>`).join("")}
     </ol>
   `;
 
@@ -667,7 +689,7 @@ function renderHeroSupport(data) {
     <span class="kicker">一定要做</span>
     <h3>优先刷这些模型</h3>
     <div class="support-chips">
-      ${grouped.must.slice(0, 6).map((section) => `<a class="mini-link" href="#${escapeHtml(section.id)}">${escapeHtml(section.name)}</a>`).join("")}
+      ${grouped.must.slice(0, 4).map((section) => `<a class="mini-link" href="#${escapeHtml(section.id)}">${escapeHtml(section.name)}</a>`).join("")}
     </div>
   `;
 
@@ -675,7 +697,7 @@ function renderHeroSupport(data) {
     <span class="kicker">禁做清单</span>
     <h3>先把这些风险刻进脑子</h3>
     <div class="support-chips">
-      ${grouped.avoid.slice(0, 5).map((section) => `<a class="mini-link" href="#${escapeHtml(section.id)}">${escapeHtml(section.name)}</a>`).join("")}
+      ${grouped.avoid.slice(0, 4).map((section) => `<a class="mini-link" href="#${escapeHtml(section.id)}">${escapeHtml(section.name)}</a>`).join("")}
     </div>
   `;
 
@@ -697,7 +719,6 @@ function renderHeroSupport(data) {
       <a class="mini-link" href="#part-basics">第一部分</a>
       <a class="mini-link" href="#${escapeHtml(data.basics.chapters[0].id)}">看导读</a>
       <a class="mini-link" href="#part-cases">第二部分</a>
-      <a class="mini-link" href="#cases-playbook">案例面板</a>
       <a class="mini-link" href="${reviewTemplateCards[0] ? `#card-${escapeHtml(reviewTemplateCards[0])}` : "#part-basics"}">复盘模板</a>
     </div>
   `;
@@ -908,11 +929,12 @@ function buildPresetButtons(cardId, state) {
 }
 
 function buildAnnotationBox(cardId, kind, state) {
-  const noteLabel = kind === "cases" ? "案例备注" : "学习备注";
+  const noteLabel = kind === "cases" ? "03 盘中观察点" : "学习备注";
   const notePlaceholder =
     kind === "cases"
-      ? "写下这个案例最关键的风险点、触发条件或你今天最该记住的一句话。"
+      ? "这里写风险点、触发条件，或者盘中最该盯的一笔。"
       : "写下这一页你真正记住了什么，或者下次复盘还要重点回看的地方。";
+  const planLabel = "04 次日执行计划";
 
   return `
     <div class="annotation-box">
@@ -932,40 +954,77 @@ function buildAnnotationBox(cardId, kind, state) {
       ${
         kind === "cases"
           ? `
-            <div class="decision-bar">
-              <span class="field-label decision-label">是否可做</span>
-              <div class="decision-row">
-                ${DECISION_OPTIONS.map((option) => {
-                  const active = state.decision === option.value;
-                  return `
+            <div class="annotation-workflow">
+              <section class="workflow-block workflow-block-primary">
+                <div class="workflow-stephead">
+                  <span class="workflow-index">01</span>
+                  <div>
+                    <strong>先下结论</strong>
+                    <p>先判断可做、观察还是不做，再补一句核心原因。</p>
+                  </div>
+                </div>
+                <div class="decision-bar">
+                  <div class="decision-row">
+                    ${DECISION_OPTIONS.map((option) => {
+                      const active = state.decision === option.value;
+                      return `
+                        <button
+                          type="button"
+                          class="decision-chip ${active ? "is-active" : ""}"
+                          data-card-id="${escapeHtml(cardId)}"
+                          data-value="${escapeHtml(option.value)}"
+                          data-action="set-decision"
+                        >
+                          ${escapeHtml(option.label)}
+                        </button>
+                      `;
+                    }).join("")}
+                  </div>
+                  <input
+                    class="note-input note-input-compact"
+                    type="text"
+                    value="${escapeHtml(state.decisionReason || "")}"
+                    data-card-id="${escapeHtml(cardId)}"
+                    data-card-field="decisionReason"
+                    placeholder="一句话下结论：比如承接强 / 题材弱 / 回落太早"
+                  >
+                </div>
+              </section>
+
+              <section class="workflow-block">
+                <div class="workflow-stephead">
+                  <span class="workflow-index">02</span>
+                  <div>
+                    <strong>再快速补记</strong>
+                    <p>一键塞入常用复盘句，少打字，先把动作记下来。</p>
+                  </div>
+                </div>
+                <div class="workflow-quick-row">
+                  ${CASE_WORKFLOW_SHORTCUTS.map((item) => `
                     <button
                       type="button"
-                      class="decision-chip ${active ? "is-active" : ""}"
+                      class="workflow-chip"
+                      data-action="apply-workflow"
                       data-card-id="${escapeHtml(cardId)}"
-                      data-value="${escapeHtml(option.value)}"
-                      data-action="set-decision"
+                      data-field="${escapeHtml(item.field)}"
+                      data-template="${escapeHtml(item.value)}"
                     >
-                      ${escapeHtml(option.label)}
+                      ${escapeHtml(item.label)}
                     </button>
-                  `;
-                }).join("")}
-              </div>
-              <input
-                class="note-input note-input-compact"
-                type="text"
-                value="${escapeHtml(state.decisionReason || "")}"
-                data-card-id="${escapeHtml(cardId)}"
-                data-card-field="decisionReason"
-                placeholder="一句话写原因：比如承接强 / 题材弱 / 回落太早"
-              >
+                  `).join("")}
+                </div>
+                <div class="preset-row">
+                  ${buildPresetButtons(cardId, state)}
+                </div>
+              </section>
             </div>
           `
-          : ""
+          : `
+            <div class="preset-row">
+              ${buildPresetButtons(cardId, state)}
+            </div>
+          `
       }
-
-      <div class="preset-row">
-        ${buildPresetButtons(cardId, state)}
-      </div>
 
       <label class="field-label" for="custom-tags-${escapeHtml(cardId)}">自定义标签</label>
       <input
@@ -982,30 +1041,45 @@ function buildAnnotationBox(cardId, kind, state) {
         ${getCustomTags(state).map((tag) => `<span class="state-chip">${escapeHtml(tag)}</span>`).join("")}
       </div>
 
-      <label class="field-label" for="note-${escapeHtml(cardId)}">${escapeHtml(noteLabel)}</label>
-      <textarea
-        id="note-${escapeHtml(cardId)}"
-        class="note-area"
-        rows="${kind === "cases" ? "3" : "3"}"
-        data-card-id="${escapeHtml(cardId)}"
-        data-card-field="note"
-        placeholder="${escapeHtml(notePlaceholder)}"
-      >${escapeHtml(state.note || "")}</textarea>
-
       ${
         kind === "cases"
           ? `
-            <label class="field-label" for="mini-review-${escapeHtml(cardId)}">案例小复盘</label>
-            <textarea
-              id="mini-review-${escapeHtml(cardId)}"
-              class="note-area compact"
-              rows="2"
-              data-card-id="${escapeHtml(cardId)}"
-              data-card-field="miniReview"
-              placeholder="这一张图你最想留下的执行提醒：能不能做、什么时候做、哪里最危险。"
-            >${escapeHtml(state.miniReview || "")}</textarea>
+            <div class="workflow-columns">
+              <section class="workflow-block">
+                <label class="field-label" for="note-${escapeHtml(cardId)}">${escapeHtml(noteLabel)}</label>
+                <textarea
+                  id="note-${escapeHtml(cardId)}"
+                  class="note-area"
+                  rows="3"
+                  data-card-id="${escapeHtml(cardId)}"
+                  data-card-field="note"
+                  placeholder="${escapeHtml(notePlaceholder)}"
+                >${escapeHtml(state.note || "")}</textarea>
+              </section>
+              <section class="workflow-block">
+                <label class="field-label" for="mini-review-${escapeHtml(cardId)}">${escapeHtml(planLabel)}</label>
+                <textarea
+                  id="mini-review-${escapeHtml(cardId)}"
+                  class="note-area compact"
+                  rows="3"
+                  data-card-id="${escapeHtml(cardId)}"
+                  data-card-field="miniReview"
+                  placeholder="这里写明天怎么做：等回落、只做前排、冲高兑现，还是继续观察。"
+                >${escapeHtml(state.miniReview || "")}</textarea>
+              </section>
+            </div>
           `
-          : ""
+          : `
+            <label class="field-label" for="note-${escapeHtml(cardId)}">${escapeHtml(noteLabel)}</label>
+            <textarea
+              id="note-${escapeHtml(cardId)}"
+              class="note-area"
+              rows="3"
+              data-card-id="${escapeHtml(cardId)}"
+              data-card-field="note"
+              placeholder="${escapeHtml(notePlaceholder)}"
+            >${escapeHtml(state.note || "")}</textarea>
+          `
       }
     </div>
   `;
@@ -1354,21 +1428,33 @@ function renderCaseShortcuts(data) {
     `;
   }).join("");
 
-  groupBarRoot.innerHTML = PLAYBOOK_GROUPS.map((group) => {
-    const items = grouped[group.kind] || [];
-    const slideTotal = items.reduce((sum, item) => sum + item.slideCount, 0);
-    return `
-      <button
-        type="button"
-        class="group-jump-chip group-jump-${escapeHtml(group.kind)}"
-        data-action="jump-group"
-        data-group="${escapeHtml(group.kind)}"
-      >
-        <span>${escapeHtml(group.label)}</span>
-        <strong>${escapeHtml(String(slideTotal))}</strong>
-      </button>
-    `;
-  }).join("");
+  groupBarRoot.innerHTML = `
+    <div class="desk-jump-head">
+      <span class="kicker">交易台快捷键</span>
+      <p>按 1-5 或直接点，马上切到五类清单。</p>
+    </div>
+    ${PLAYBOOK_GROUPS.map((group, index) => {
+      const items = grouped[group.kind] || [];
+      const slideTotal = items.reduce((sum, item) => sum + item.slideCount, 0);
+      return `
+        <button
+          type="button"
+          class="group-jump-chip group-jump-${escapeHtml(group.kind)}"
+          data-action="jump-group"
+          data-group="${escapeHtml(group.kind)}"
+          data-hotkey="${escapeHtml(String(index + 1))}"
+          aria-label="${escapeHtml(`快捷键 ${index + 1}，跳到${group.label}`)}"
+        >
+          <span class="group-hotkey">${escapeHtml(String(index + 1).padStart(2, "0"))}</span>
+          <span class="group-copy">
+            <span>${escapeHtml(group.label)}</span>
+            <small>${escapeHtml(String(items.length))} 章 / ${escapeHtml(String(slideTotal))} 页</small>
+          </span>
+          <strong>${escapeHtml(String(slideTotal))}</strong>
+        </button>
+      `;
+    }).join("")}
+  `;
 
   bucketRoot.innerHTML = PLAYBOOK_GROUPS.map((group) => {
     const items = grouped[group.kind] || [];
@@ -1460,6 +1546,13 @@ function updateCardDataset(card) {
 
   card.querySelectorAll('[data-action="set-decision"]').forEach((button) => {
     const active = state.decision === (button.dataset.value || "");
+    button.classList.toggle("is-active", active);
+  });
+
+  card.querySelectorAll('[data-action="apply-workflow"]').forEach((button) => {
+    const field = button.dataset.field || "";
+    const template = button.dataset.template || "";
+    const active = String(state[field] || "").includes(template);
     button.classList.toggle("is-active", active);
   });
 }
@@ -1590,6 +1683,32 @@ function wireAnnotationEvents() {
         current.add(tag);
       }
       updateCardState(cardId, { presetTags: [...current] });
+      const card = document.querySelector(`[data-card-id="${CSS.escape(cardId)}"]`);
+      if (card) {
+        updateCardDataset(card);
+      }
+      updateProgressWidgets();
+      applyFilters();
+      return;
+    }
+
+    const workflowButton = event.target.closest('[data-action="apply-workflow"]');
+    if (workflowButton) {
+      const cardId = workflowButton.dataset.cardId || "";
+      const field = workflowButton.dataset.field || "";
+      const template = workflowButton.dataset.template || "";
+      const state = getCardState(cardId);
+      const nextValue = appendUniqueLine(state[field], template);
+
+      updateCardState(cardId, { [field]: nextValue });
+
+      const input = document.querySelector(
+        `[data-card-id="${CSS.escape(cardId)}"][data-card-field="${CSS.escape(field)}"]`
+      );
+      if (input) {
+        input.value = nextValue;
+      }
+
       const card = document.querySelector(`[data-card-id="${CSS.escape(cardId)}"]`);
       if (card) {
         updateCardDataset(card);
@@ -1797,6 +1916,30 @@ function renderCaseWorkspace(data) {
   wireSectionSpy();
 }
 
+function pulseGroupJumpChip(group) {
+  const button = document.querySelector(`.group-jump-chip[data-group="${CSS.escape(group)}"]`);
+  if (!button) {
+    return;
+  }
+  button.classList.add("is-live");
+  window.setTimeout(() => button.classList.remove("is-live"), 900);
+}
+
+function jumpToCaseGroup(group) {
+  if (!currentData) {
+    return;
+  }
+
+  if (getCaseViewMode() !== "playbook") {
+    setCaseViewMode("playbook");
+    renderCaseWorkspace(currentData);
+    applyFilters();
+  }
+
+  pulseGroupJumpChip(group);
+  document.querySelector(`#cases-group-${CSS.escape(group)}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
 function wireCaseViewEvents() {
   document.addEventListener("click", (event) => {
     const toggle = event.target.closest("[data-case-view]");
@@ -1818,13 +1961,26 @@ function wireCaseViewEvents() {
       return;
     }
 
-    const group = groupJump.dataset.group || "";
-    if (getCaseViewMode() !== "playbook") {
-      setCaseViewMode("playbook");
-      renderCaseWorkspace(currentData);
-      applyFilters();
+    jumpToCaseGroup(groupJump.dataset.group || "");
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) {
+      return;
     }
-    document.querySelector(`#cases-group-${CSS.escape(group)}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+
+    const typingTarget = event.target.closest("input, textarea, select, [contenteditable='true']");
+    if (typingTarget) {
+      return;
+    }
+
+    const hotkeyIndex = Number(event.key);
+    if (!Number.isInteger(hotkeyIndex) || hotkeyIndex < 1 || hotkeyIndex > PLAYBOOK_GROUPS.length) {
+      return;
+    }
+
+    event.preventDefault();
+    jumpToCaseGroup(PLAYBOOK_GROUPS[hotkeyIndex - 1].kind);
   });
 }
 
