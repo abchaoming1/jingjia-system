@@ -1,6 +1,11 @@
 const STORAGE_KEY = "auction-study-workspace-v5";
 const UI_STORAGE_KEY = "auction-study-workspace-ui-v2";
 const PRESET_TAGS = ["重点看", "已吃透", "回看", "慎做提醒"];
+const DECISION_OPTIONS = [
+  { value: "do", label: "可做" },
+  { value: "watch", label: "观察" },
+  { value: "skip", label: "不做" },
+];
 const PATTERN_KEYWORDS = [
   "一字",
   "弱转强",
@@ -255,11 +260,62 @@ function normalizeTagList(raw = "") {
   return [...new Set(String(raw).split(/[\s,，、/]+/).map((item) => item.trim()).filter(Boolean))].slice(0, 12);
 }
 
+function escapeRegExp(value = "") {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function formatRichText(text = "") {
+  let html = escapeHtml(text);
+
+  html = html.replace(/^([^：:]{1,24})(：|:)/, "<strong>$1$2</strong>");
+
+  [
+    "20 分之前",
+    "20 分之后",
+    "20 分前",
+    "20 分后",
+    "15%-35%",
+    "15% 以下",
+    "10%",
+    "15%",
+    "20%",
+    "一字板",
+    "竞昨比",
+    "抛压",
+    "承接",
+    "分歧",
+    "回落",
+    "题材",
+    "身位",
+    "试盘",
+    "炸板",
+    "弱转强",
+    "强转弱",
+    "最先上板",
+    "一定要做",
+    "禁做",
+    "卖点",
+    "买点",
+    "仓位",
+  ].forEach((keyword) => {
+    const pattern = new RegExp(escapeRegExp(keyword), "g");
+    html = html.replace(pattern, `<strong>${keyword}</strong>`);
+  });
+
+  return html;
+}
+
+function renderRichList(items = []) {
+  return items.map((item) => `<li>${formatRichText(item)}</li>`).join("");
+}
+
 function defaultCardState() {
   return {
     reviewed: false,
     presetTags: [],
     customTags: "",
+    decision: "",
+    decisionReason: "",
     note: "",
     miniReview: "",
     updatedAt: 0,
@@ -269,6 +325,7 @@ function defaultCardState() {
 function defaultUiState() {
   return {
     caseView: "playbook",
+    mobileTopbarCollapsed: true,
   };
 }
 
@@ -311,7 +368,7 @@ function getCardState(cardId) {
 }
 
 function hasStateNotes(state) {
-  return Boolean((state.note || "").trim() || (state.miniReview || "").trim());
+  return Boolean((state.note || "").trim() || (state.miniReview || "").trim() || (state.decisionReason || "").trim());
 }
 
 function getCustomTags(state) {
@@ -340,6 +397,23 @@ function setCaseViewMode(nextMode) {
     ...defaultUiState(),
     ...uiState,
     caseView: nextMode === "sections" ? "sections" : "playbook",
+  };
+  persistUiState();
+}
+
+function isMobileViewport() {
+  return window.matchMedia("(max-width: 820px)").matches;
+}
+
+function getMobileTopbarCollapsed() {
+  return isMobileViewport() ? uiState.mobileTopbarCollapsed !== false : false;
+}
+
+function setMobileTopbarCollapsed(nextValue) {
+  uiState = {
+    ...defaultUiState(),
+    ...uiState,
+    mobileTopbarCollapsed: Boolean(nextValue),
   };
   persistUiState();
 }
@@ -509,13 +583,16 @@ function renderWorkspaceSummary(data) {
   const stats = getProgressStats(data);
   const root = document.querySelector("#workspace-summary");
   root.innerHTML = `
-    <p class="panel-label">现在怎么用</p>
-    <ol class="hero-steps">
-      <li>先开左侧筛选台，缩小到你今天真正要看的范围。</li>
-      <li>再刷第一部分，统一读盘语言、仓位和卖点流程。</li>
-      <li>进入第二部分先看五大清单，再回到对应案例逐张对图。</li>
-      <li>看到关键卡片时，直接在卡片下写备注、小复盘和标签，系统会自动保存在本地。</li>
-    </ol>
+    <p class="panel-label">今日复盘主线</p>
+    <div class="hero-note-block">
+      <h3>先把今天的动作顺序固定下来</h3>
+      <ol class="hero-steps">
+        <li><strong>先开筛选台</strong>，缩小到今天真正要看的题材、形态和案例范围。</li>
+        <li><strong>先看第一部分</strong>，统一读盘语言、仓位和卖点框架。</li>
+        <li><strong>第二部分先看禁做 / 一定要做</strong>，再深入具体案例。</li>
+        <li><strong>看到关键卡片就留判断</strong>，不要只看图不写结论。</li>
+      </ol>
+    </div>
     <div class="workspace-stats">
       <article><strong>${escapeHtml(String(stats.reviewedCount))}</strong><span>已复盘卡片</span></article>
       <article><strong>${escapeHtml(String(stats.notedCount))}</strong><span>有备注卡片</span></article>
@@ -530,35 +607,28 @@ function renderDailyEntry(data) {
   const root = document.querySelector("#daily-entry-grid");
   root.innerHTML = [
     {
-      title: "今日起手顺序",
-      body: "先筛，再看基础，再刷清单，再落到案例卡片批注。把“先做什么”固定下来，比堆更多内容更重要。",
+      title: "今日复盘入口",
+      body: "先筛选，再判断今天重点刷哪一类，再决定今天不看哪一类。首页先给动作，不先给信息洪水。",
       links: [
         { label: "打开筛选台", href: "#search-workbench" },
-        { label: "看第一部分", href: "#part-basics" },
+        { label: "第一部分", href: "#part-basics" },
       ],
     },
     {
-      title: "新手先看这里",
-      body: "如果今天脑子乱，就只看导读、执行顺序、仓位规则、卖点流程和复盘模板，不要什么都一起刷。",
+      title: "核心口诀与禁做",
+      body: "今天脑子只要记住两件事：什么结构一定不做，什么结构一定优先看。先剔除垃圾，再谈执行。",
+      links: [
+        { label: "五大清单", href: "#cases-playbook" },
+        { label: "禁做 / 一定要做", href: "#cases-group-bar" },
+      ],
+    },
+    {
+      title: "第一部分操作手册",
+      body: "第一部分继续保留，但会更像操作手册。先把仓位、买点、卖点和术语钉住，再去刷案例。",
       links: [
         { label: "导读与结构", href: `#${escapeHtml(data.basics.chapters[0].id)}` },
         { label: "复盘模板", href: reviewTemplateCards[0] ? `#card-${escapeHtml(reviewTemplateCards[0])}` : "#part-basics" },
-      ],
-    },
-    {
-      title: "五大清单入口",
-      body: "第二部分默认先按五大清单来刷，不先在海量案例里盲翻。先区分禁做、必须做，再看最好做和可以做。",
-      links: [
-        { label: "直达五大清单", href: "#cases-playbook" },
-        { label: "直达案例章节", href: "#cases-sections" },
-      ],
-    },
-    {
-      title: "本地批注规则",
-      body: "所有卡片的备注、已复盘状态、预设标签和案例小复盘都会自动存在当前浏览器里，适合你每天持续累积。",
-      links: [
-        { label: "查看进度", href: "#search-workbench" },
-        { label: "开始批注", href: "#part-cases" },
+        { label: "第二部分", href: "#part-cases" },
       ],
     },
   ]
@@ -586,16 +656,16 @@ function renderHeroSupport(data) {
   const reviewTemplateCards = findReviewTemplateTargets(data);
 
   workflowCard.innerHTML = `
-    <span class="kicker">今日流程</span>
-    <h3>打开网页先做这四步</h3>
+    <span class="kicker">今日入口</span>
+    <h3>今天先动哪几步</h3>
     <ol class="support-list ordered">
-      ${executionSteps.slice(0, 4).map((step) => `<li>${escapeHtml(step)}</li>`).join("")}
+      ${executionSteps.slice(0, 3).map((step) => `<li>${formatRichText(step)}</li>`).join("")}
     </ol>
   `;
 
   mustCard.innerHTML = `
     <span class="kicker">一定要做</span>
-    <h3>先刷这些模型</h3>
+    <h3>优先刷这些模型</h3>
     <div class="support-chips">
       ${grouped.must.slice(0, 6).map((section) => `<a class="mini-link" href="#${escapeHtml(section.id)}">${escapeHtml(section.name)}</a>`).join("")}
     </div>
@@ -611,23 +681,24 @@ function renderHeroSupport(data) {
 
   mantraCard.innerHTML = `
     <span class="kicker">口诀浓缩版</span>
-    <h3>首页先记住这四句</h3>
+    <h3>首页只记这四句</h3>
     <ul class="support-list">
-      <li>20 分前看试盘，20 分后看真实抛压。</li>
-      <li>抛压大就必须看承接，小分歧才值得直接接。</li>
-      <li>题材越大越好，身位越前越好，最先上板更值得给仓位。</li>
-      <li>每天只做最标准、最前排、最值得拿先手的一批。</li>
+      <li>${formatRichText("20 分前看试盘，20 分后看真实抛压。")}</li>
+      <li>${formatRichText("抛压大就必须看承接，小分歧才值得直接接。")}</li>
+      <li>${formatRichText("题材越大越好，身位越前越好，最先上板更值得给仓位。")}</li>
+      <li>${formatRichText("每天只做最标准、最前排、最值得拿先手的一批。")}</li>
     </ul>
   `;
 
   newbieCard.innerHTML = `
-    <span class="kicker">新手入口</span>
-    <h3>脑子乱时只走这一条</h3>
+    <span class="kicker">快捷跳转</span>
+    <h3>先第一部分，再第二部分</h3>
     <div class="support-chips">
-      <a class="mini-link" href="#search-workbench">先开筛选台</a>
+      <a class="mini-link" href="#part-basics">第一部分</a>
       <a class="mini-link" href="#${escapeHtml(data.basics.chapters[0].id)}">看导读</a>
-      <a class="mini-link" href="${reviewTemplateCards[0] ? `#card-${escapeHtml(reviewTemplateCards[0])}` : "#part-basics"}">复盘模板①</a>
-      <a class="mini-link" href="${reviewTemplateCards[1] ? `#card-${escapeHtml(reviewTemplateCards[1])}` : "#part-basics"}">复盘模板②</a>
+      <a class="mini-link" href="#part-cases">第二部分</a>
+      <a class="mini-link" href="#cases-playbook">案例面板</a>
+      <a class="mini-link" href="${reviewTemplateCards[0] ? `#card-${escapeHtml(reviewTemplateCards[0])}` : "#part-basics"}">复盘模板</a>
     </div>
   `;
 }
@@ -636,11 +707,12 @@ function renderMantras() {
   const root = document.querySelector("#mantra-grid");
   root.innerHTML = mantraCards
     .map(
-      (item) => `
-        <article class="mantra-card">
+      (item, index) => `
+        <article class="mantra-card manual-card">
+          <span class="manual-index">规则 ${escapeHtml(String(index + 1).padStart(2, "0"))}</span>
           <h3>${escapeHtml(item.title)}</h3>
           <ul>
-            ${item.points.map((point) => `<li>${escapeHtml(point)}</li>`).join("")}
+            ${renderRichList(item.points)}
           </ul>
         </article>
       `
@@ -656,11 +728,12 @@ function renderDetailCards() {
   const root = document.querySelector("#detail-grid");
   root.innerHTML = detailCards
     .map(
-      (item) => `
-        <article class="question-card">
+      (item, index) => `
+        <article class="question-card manual-card">
+          <span class="manual-index">手册 ${escapeHtml(String(index + 1).padStart(2, "0"))}</span>
           <h3>${escapeHtml(item.title)}</h3>
           <ul>
-            ${item.points.map((point) => `<li>${escapeHtml(point)}</li>`).join("")}
+            ${renderRichList(item.points)}
           </ul>
         </article>
       `
@@ -672,10 +745,11 @@ function renderGlossary() {
   const root = document.querySelector("#glossary-grid");
   root.innerHTML = glossaryCards
     .map(
-      (item) => `
-        <article class="question-card">
+      (item, index) => `
+        <article class="question-card manual-card">
+          <span class="manual-index">术语 ${escapeHtml(String(index + 1).padStart(2, "0"))}</span>
           <h3>${escapeHtml(item.title)}</h3>
-          <p>${escapeHtml(item.body)}</p>
+          <p>${formatRichText(item.body)}</p>
         </article>
       `
     )
@@ -799,6 +873,16 @@ function buildStateBadgeMarkup(state) {
     badges.push(`<span class="state-chip state-chip-reviewed">已复盘</span>`);
   }
 
+  if (state.decision === "do") {
+    badges.push(`<span class="state-chip state-chip-decision state-chip-do">可做</span>`);
+  }
+  if (state.decision === "watch") {
+    badges.push(`<span class="state-chip state-chip-decision state-chip-watch">观察</span>`);
+  }
+  if (state.decision === "skip") {
+    badges.push(`<span class="state-chip state-chip-decision state-chip-skip">不做</span>`);
+  }
+
   getAllTags(state).forEach((tag) => {
     badges.push(`<span class="state-chip">${escapeHtml(tag)}</span>`);
   });
@@ -845,6 +929,40 @@ function buildAnnotationBox(cardId, kind, state) {
         <span class="annotation-tip">自动保存在本地浏览器</span>
       </div>
 
+      ${
+        kind === "cases"
+          ? `
+            <div class="decision-bar">
+              <span class="field-label decision-label">是否可做</span>
+              <div class="decision-row">
+                ${DECISION_OPTIONS.map((option) => {
+                  const active = state.decision === option.value;
+                  return `
+                    <button
+                      type="button"
+                      class="decision-chip ${active ? "is-active" : ""}"
+                      data-card-id="${escapeHtml(cardId)}"
+                      data-value="${escapeHtml(option.value)}"
+                      data-action="set-decision"
+                    >
+                      ${escapeHtml(option.label)}
+                    </button>
+                  `;
+                }).join("")}
+              </div>
+              <input
+                class="note-input note-input-compact"
+                type="text"
+                value="${escapeHtml(state.decisionReason || "")}"
+                data-card-id="${escapeHtml(cardId)}"
+                data-card-field="decisionReason"
+                placeholder="一句话写原因：比如承接强 / 题材弱 / 回落太早"
+              >
+            </div>
+          `
+          : ""
+      }
+
       <div class="preset-row">
         ${buildPresetButtons(cardId, state)}
       </div>
@@ -868,7 +986,7 @@ function buildAnnotationBox(cardId, kind, state) {
       <textarea
         id="note-${escapeHtml(cardId)}"
         class="note-area"
-        rows="${kind === "cases" ? "4" : "3"}"
+        rows="${kind === "cases" ? "3" : "3"}"
         data-card-id="${escapeHtml(cardId)}"
         data-card-field="note"
         placeholder="${escapeHtml(notePlaceholder)}"
@@ -881,7 +999,7 @@ function buildAnnotationBox(cardId, kind, state) {
             <textarea
               id="mini-review-${escapeHtml(cardId)}"
               class="note-area compact"
-              rows="3"
+              rows="2"
               data-card-id="${escapeHtml(cardId)}"
               data-card-field="miniReview"
               placeholder="这一张图你最想留下的执行提醒：能不能做、什么时候做、哪里最危险。"
@@ -950,7 +1068,7 @@ function buildSlideCardMarkup(parentName, sectionId, slide, kind) {
   const points =
     kind === "basics"
       ? (slide.points || []).slice(0, slide.pointLimit || 4)
-      : (slide.takeaways || []).slice(0, 4);
+      : (slide.takeaways || []).slice(0, 2);
   const caseMeta = kind === "cases" ? getCasePlaybookMeta(parentName) : null;
   const theme = kind === "cases" ? extractThemeLabel(slide.marketContext) : "基础";
   const patterns =
@@ -984,7 +1102,15 @@ function buildSlideCardMarkup(parentName, sectionId, slide, kind) {
     theme,
   ]);
 
-  const fullHaystack = buildHaystack([baseHaystack, state.note, state.miniReview, state.customTags, ...(state.presetTags || [])]);
+  const fullHaystack = buildHaystack([
+    baseHaystack,
+    state.decision,
+    state.decisionReason,
+    state.note,
+    state.miniReview,
+    state.customTags,
+    ...(state.presetTags || []),
+  ]);
   const topLabel =
     kind === "basics"
       ? slide.eyebrow || `基础页 ${slide.number}`
@@ -1049,7 +1175,7 @@ function buildSlideCardMarkup(parentName, sectionId, slide, kind) {
             : `
               ${summary ? `<p class="case-context">${escapeHtml(summary)}</p>` : ""}
               <ul class="case-points">
-                ${points.map((point) => `<li>${escapeHtml(point)}</li>`).join("")}
+                ${renderRichList(points)}
               </ul>
             `
         }
@@ -1191,6 +1317,7 @@ function renderCaseShortcuts(data) {
   const shortcutRoot = document.querySelector("#cases-shortcuts");
   const bucketRoot = document.querySelector("#cases-buckets");
   const outlineRoot = document.querySelector("#cases-outline");
+  const groupBarRoot = document.querySelector("#cases-group-bar");
   const hintRoot = document.querySelector("#case-view-hint");
   const grouped = getGroupedCaseSections(data);
   const mode = getCaseViewMode();
@@ -1199,14 +1326,11 @@ function renderCaseShortcuts(data) {
     button.classList.toggle("is-active", button.dataset.caseView === mode);
   });
 
-  bucketRoot.classList.toggle("hidden", mode !== "playbook");
-  outlineRoot.classList.toggle("hidden", mode !== "sections");
-
   if (hintRoot) {
     hintRoot.textContent =
       mode === "playbook"
-        ? "清单模式下，案例会按“禁做 / 一定要做 / 最好要做 / 可以做 / 慎做”五大区重组，适合你每天先刷标准形。"
-        : "PPT 模式下，案例回到原课件章节顺序，适合你逐页对图、按课件逻辑复盘。";
+        ? "当前内容区正在按五类清单展开，适合你先刷标准形、先看禁做和一定要做。"
+        : "当前内容区正在按 PPT 章节顺序展开，适合你逐页对图、按课件逻辑复盘。";
   }
 
   shortcutRoot.innerHTML = PLAYBOOK_GROUPS.map((group) => {
@@ -1230,8 +1354,25 @@ function renderCaseShortcuts(data) {
     `;
   }).join("");
 
+  groupBarRoot.innerHTML = PLAYBOOK_GROUPS.map((group) => {
+    const items = grouped[group.kind] || [];
+    const slideTotal = items.reduce((sum, item) => sum + item.slideCount, 0);
+    return `
+      <button
+        type="button"
+        class="group-jump-chip group-jump-${escapeHtml(group.kind)}"
+        data-action="jump-group"
+        data-group="${escapeHtml(group.kind)}"
+      >
+        <span>${escapeHtml(group.label)}</span>
+        <strong>${escapeHtml(String(slideTotal))}</strong>
+      </button>
+    `;
+  }).join("");
+
   bucketRoot.innerHTML = PLAYBOOK_GROUPS.map((group) => {
     const items = grouped[group.kind] || [];
+    const entryTarget = mode === "playbook" ? `cases-group-${group.kind}` : items[0]?.id || "cases-playbook";
     return `
       <article class="bucket-card bucket-${escapeHtml(group.kind)}" id="cases-${escapeHtml(group.kind)}">
         <div class="bucket-head">
@@ -1239,7 +1380,7 @@ function renderCaseShortcuts(data) {
           <p>${escapeHtml(group.intro)}</p>
         </div>
         <div class="bucket-links">
-          <a class="bucket-link" href="#cases-group-${escapeHtml(group.kind)}">进入本区</a>
+          <a class="bucket-link" href="#${escapeHtml(entryTarget)}">${mode === "playbook" ? "进入本区" : "进入首章"}</a>
           ${items.map((section) => `<a class="bucket-link" href="#${escapeHtml(section.id)}">${escapeHtml(section.name)}</a>`).join("")}
         </div>
       </article>
@@ -1294,6 +1435,8 @@ function updateCardDataset(card) {
   card.dataset.tagged = getAllTags(state).length ? "1" : "0";
   card.dataset.haystack = buildHaystack([
     baseHaystack,
+    state.decision,
+    state.decisionReason,
     state.note,
     state.miniReview,
     state.customTags,
@@ -1312,6 +1455,11 @@ function updateCardDataset(card) {
 
   card.querySelectorAll('[data-action="toggle-tag"]').forEach((button) => {
     const active = (state.presetTags || []).includes(button.dataset.tag || "");
+    button.classList.toggle("is-active", active);
+  });
+
+  card.querySelectorAll('[data-action="set-decision"]').forEach((button) => {
+    const active = state.decision === (button.dataset.value || "");
     button.classList.toggle("is-active", active);
   });
 }
@@ -1431,20 +1579,37 @@ function wireFilterEvents() {
 function wireAnnotationEvents() {
   document.addEventListener("click", (event) => {
     const tagButton = event.target.closest('[data-action="toggle-tag"]');
-    if (!tagButton) {
+    if (tagButton) {
+      const cardId = tagButton.dataset.cardId;
+      const tag = tagButton.dataset.tag || "";
+      const state = getCardState(cardId);
+      const current = new Set(state.presetTags || []);
+      if (current.has(tag)) {
+        current.delete(tag);
+      } else {
+        current.add(tag);
+      }
+      updateCardState(cardId, { presetTags: [...current] });
+      const card = document.querySelector(`[data-card-id="${CSS.escape(cardId)}"]`);
+      if (card) {
+        updateCardDataset(card);
+      }
+      updateProgressWidgets();
+      applyFilters();
       return;
     }
 
-    const cardId = tagButton.dataset.cardId;
-    const tag = tagButton.dataset.tag || "";
-    const state = getCardState(cardId);
-    const current = new Set(state.presetTags || []);
-    if (current.has(tag)) {
-      current.delete(tag);
-    } else {
-      current.add(tag);
+    const decisionButton = event.target.closest('[data-action="set-decision"]');
+    if (!decisionButton) {
+      return;
     }
-    updateCardState(cardId, { presetTags: [...current] });
+
+    const cardId = decisionButton.dataset.cardId;
+    const value = decisionButton.dataset.value || "";
+    const state = getCardState(cardId);
+    updateCardState(cardId, {
+      decision: state.decision === value ? "" : value,
+    });
     const card = document.querySelector(`[data-card-id="${CSS.escape(cardId)}"]`);
     if (card) {
       updateCardDataset(card);
@@ -1502,6 +1667,48 @@ function wireLightbox() {
       dialog.close();
     }
   });
+}
+
+function wireTopbar() {
+  const toggleButton = document.querySelector("#topbar-fold-toggle");
+  const topbar = document.querySelector("#topbar");
+
+  const syncTopbarState = () => {
+    const collapsed = getMobileTopbarCollapsed();
+    document.body.classList.toggle("topbar-collapsed", collapsed);
+    toggleButton.textContent = collapsed ? "展开顶部" : "收起顶部";
+    toggleButton.setAttribute("aria-expanded", String(!collapsed));
+    topbar.classList.toggle("is-collapsed", collapsed);
+  };
+
+  const applyResponsiveTopbar = () => {
+    if (!isMobileViewport()) {
+      document.body.classList.remove("topbar-collapsed");
+      topbar.classList.remove("is-collapsed");
+      toggleButton.textContent = "收起顶部";
+      toggleButton.setAttribute("aria-expanded", "true");
+      return;
+    }
+    syncTopbarState();
+  };
+
+  toggleButton.addEventListener("click", () => {
+    const nextState = !getMobileTopbarCollapsed();
+    setMobileTopbarCollapsed(nextState);
+    syncTopbarState();
+  });
+
+  document.querySelectorAll(".topbar-nav a").forEach((link) => {
+    link.addEventListener("click", () => {
+      if (isMobileViewport()) {
+        setMobileTopbarCollapsed(true);
+        syncTopbarState();
+      }
+    });
+  });
+
+  window.addEventListener("resize", applyResponsiveTopbar);
+  applyResponsiveTopbar();
 }
 
 function wireSidebar() {
@@ -1593,19 +1800,31 @@ function renderCaseWorkspace(data) {
 function wireCaseViewEvents() {
   document.addEventListener("click", (event) => {
     const toggle = event.target.closest("[data-case-view]");
-    if (!toggle || !currentData) {
+    if (toggle && currentData) {
+      const nextMode = toggle.dataset.caseView || "playbook";
+      if (nextMode === getCaseViewMode()) {
+        return;
+      }
+
+      setCaseViewMode(nextMode);
+      renderCaseWorkspace(currentData);
+      applyFilters();
+      document.querySelector("#cases-playbook")?.scrollIntoView({ behavior: "smooth", block: "start" });
       return;
     }
 
-    const nextMode = toggle.dataset.caseView || "playbook";
-    if (nextMode === getCaseViewMode()) {
+    const groupJump = event.target.closest('[data-action="jump-group"]');
+    if (!groupJump || !currentData) {
       return;
     }
 
-    setCaseViewMode(nextMode);
-    renderCaseWorkspace(currentData);
-    applyFilters();
-    document.querySelector("#cases-playbook")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    const group = groupJump.dataset.group || "";
+    if (getCaseViewMode() !== "playbook") {
+      setCaseViewMode("playbook");
+      renderCaseWorkspace(currentData);
+      applyFilters();
+    }
+    document.querySelector(`#cases-group-${CSS.escape(group)}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
   });
 }
 
@@ -1638,6 +1857,7 @@ function init() {
   }
 
   wireLightbox();
+  wireTopbar();
   wireSidebar();
   wireFilterEvents();
   wireAnnotationEvents();

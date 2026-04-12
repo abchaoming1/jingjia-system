@@ -8,34 +8,43 @@
 </head>
 <body>
   <div class="page-shell">
-    <header class="topbar">
-      <div class="topbar-brand">
-        <span class="eyebrow">集合竞价 · 实战复盘工具</span>
-        <strong>超全竞价 - 无敌</strong>
+    <header class="topbar" id="topbar">
+      <div class="topbar-mainrow">
+        <div class="topbar-brand">
+          <span class="eyebrow">集合竞价 · 实战复盘工具</span>
+          <strong>超全竞价 - 无敌</strong>
+        </div>
+        <div class="topbar-actions">
+          <button class="topbar-fold-toggle" id="topbar-fold-toggle" type="button" aria-expanded="true" aria-controls="topbar-nav">
+            收起顶部
+          </button>
+          <button class="menu-toggle" id="menu-toggle" type="button" aria-expanded="false" aria-controls="sidebar">
+            目录与筛选
+          </button>
+        </div>
       </div>
-      <nav class="topbar-nav">
+      <nav class="topbar-nav" id="topbar-nav">
         <a class="topbar-link" href="#search-workbench" data-spy-link="search-workbench">搜索筛选</a>
+        <a class="topbar-link" href="#daily-entry" data-spy-link="daily-entry">今日入口</a>
         <a class="topbar-link" href="#part-basics" data-spy-link="part-basics">第一部分</a>
         <a class="topbar-link" href="#part-cases" data-spy-link="part-cases">第二部分</a>
         <a class="topbar-link" href="#cases-playbook" data-spy-link="cases-playbook">五大清单</a>
       </nav>
-      <button class="menu-toggle" id="menu-toggle" type="button" aria-expanded="false" aria-controls="sidebar">
-        目录与筛选
-      </button>
     </header>
 
     <header class="hero" id="top">
       <div class="hero-main">
-        <span class="eyebrow">先学基础，再刷案例，但整个页面更偏你自己的每日实战复盘</span>
-        <h1>把讲义、案例、清单和本地批注，收进同一个交易工作台</h1>
+        <span class="eyebrow">首页先像你的复盘笔记面板，再像课程页</span>
+        <h1>先定今天刷什么，再定今天绝不做什么</h1>
         <p class="hero-summary">
-          第一部分承接《集合竞价交易认知与实战要点》，负责把读盘语言、竞价规则、仓位和买卖点框架打牢。
-          第二部分承接《接力战法 - 集合竞价案例教学》，默认先按“禁做 / 一定要做 / 最好要做 / 可以做 / 慎做”来刷，再回到 PPT 章节逐页对图复盘。
+          第一屏只保留你每天真正会用的东西：今日入口、核心口诀、禁做 / 一定要做清单、以及第一部分和第二部分快捷跳转。
+          先把视角固定住，再往下看细节，复盘会更稳。
         </p>
         <div class="hero-actions">
-          <a class="part-chip" href="#search-workbench">先开筛选台</a>
-          <a class="part-chip" href="#part-basics">先刷基础</a>
-          <a class="part-chip" href="#part-cases">再刷案例</a>
+          <a class="part-chip" href="#daily-entry">今日复盘入口</a>
+          <a class="part-chip" href="#cases-playbook">一定要做 / 禁做</a>
+          <a class="part-chip" href="#part-basics">第一部分</a>
+          <a class="part-chip" href="#part-cases">第二部分</a>
           <a class="part-chip" href="#part-basics" id="hero-review-link">直达复盘模板</a>
         </div>
         <div class="hero-metrics" id="hero-metrics"></div>
@@ -130,8 +139,8 @@
         <section class="overview-card" id="daily-entry">
           <div class="section-heading compact">
             <span class="kicker">今日入口</span>
-            <h2>先定节奏，再进内容</h2>
-            <p>这块不强调展示感，强调你每天打开以后知道先做什么、再看什么、最后落在哪几个输入框里。</p>
+            <h2>先做复盘动作，再决定往哪里深入</h2>
+            <p>这一块更像你的每日操作台，不讲气氛，讲顺序和动作。</p>
           </div>
           <div class="overview-grid" id="daily-entry-grid"></div>
         </section>
@@ -213,8 +222,8 @@
           <section class="question-board part-inner" id="cases-playbook">
             <div class="section-heading compact">
               <span class="kicker">默认入口</span>
-              <h2>先看统计和快捷跳转，再切到你要的案例视图</h2>
-              <p>现在第二部分改成两种真视图：默认按五大清单直接刷；需要对照原课件时，再一键切回 PPT 章节顺序。</p>
+              <h2>五类清单和 PPT 顺序都放到台面上</h2>
+              <p>上面先把两套入口都给到你，下面的案例内容区再按当前模式展开，这样切换不会迷路。</p>
             </div>
             <div class="cases-toolbar">
               <div class="view-switch" id="case-view-switch" aria-label="案例视图切换">
@@ -224,12 +233,27 @@
               <p class="view-hint" id="case-view-hint"></p>
             </div>
             <div class="mode-links">
-              <a class="part-chip" href="#cases-playbook">回到视图切换</a>
-              <a class="part-chip" href="#cases-sections">直达案例内容区</a>
+              <a class="part-chip" href="#cases-playbook">回到案例面板</a>
+              <a class="part-chip" href="#cases-sections">直达当前内容区</a>
             </div>
             <div class="shortcut-grid" id="cases-shortcuts"></div>
-            <div class="bucket-grid" id="cases-buckets"></div>
-            <div class="outline-grid hidden" id="cases-outline"></div>
+            <div class="cases-group-bar" id="cases-group-bar"></div>
+            <div class="cases-overview-grid">
+              <section class="cases-overview-panel">
+                <div class="cases-overview-head">
+                  <span class="kicker">五类清单速跳</span>
+                  <h3>先按清单刷</h3>
+                </div>
+                <div class="bucket-grid" id="cases-buckets"></div>
+              </section>
+              <section class="cases-overview-panel">
+                <div class="cases-overview-head">
+                  <span class="kicker">PPT 顺序速跳</span>
+                  <h3>再按章节对图</h3>
+                </div>
+                <div class="outline-grid" id="cases-outline"></div>
+              </section>
+            </div>
           </section>
 
           <section class="content-sections" id="cases-sections"></section>
