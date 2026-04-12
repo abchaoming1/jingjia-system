@@ -237,6 +237,8 @@ let studyState = loadStudyState();
 let uiState = loadUiState();
 let currentData = null;
 let sectionSpyObserver = null;
+let caseGroupSpyObserver = null;
+let isRestoringSavedAnchor = false;
 
 function escapeHtml(value = "") {
   return String(value)
@@ -349,6 +351,10 @@ function defaultUiState() {
   return {
     caseView: "playbook",
     mobileTopbarCollapsed: true,
+    todayTheme: "",
+    currentCaseGroup: "must",
+    lastAnchorId: "",
+    lastAnchorLabel: "",
   };
 }
 
@@ -422,6 +428,55 @@ function setCaseViewMode(nextMode) {
     caseView: nextMode === "sections" ? "sections" : "playbook",
   };
   persistUiState();
+}
+
+function getTodayTheme(data) {
+  const available = (data?.cases?.topThemes || []).map((item) => item.name).filter(Boolean);
+  if (uiState.todayTheme && available.includes(uiState.todayTheme)) {
+    return uiState.todayTheme;
+  }
+  return available[0] || "";
+}
+
+function setTodayTheme(nextTheme = "") {
+  uiState = {
+    ...defaultUiState(),
+    ...uiState,
+    todayTheme: String(nextTheme || ""),
+  };
+  persistUiState();
+}
+
+function getCurrentCaseGroup() {
+  const known = new Set(PLAYBOOK_GROUPS.map((item) => item.kind));
+  return known.has(uiState.currentCaseGroup) ? uiState.currentCaseGroup : "must";
+}
+
+function setCurrentCaseGroup(nextGroup = "must") {
+  uiState = {
+    ...defaultUiState(),
+    ...uiState,
+    currentCaseGroup: nextGroup,
+  };
+  persistUiState();
+}
+
+function getLastAnchor() {
+  return {
+    id: String(uiState.lastAnchorId || ""),
+    label: String(uiState.lastAnchorLabel || ""),
+  };
+}
+
+function setLastAnchor(nextId = "", nextLabel = "") {
+  uiState = {
+    ...defaultUiState(),
+    ...uiState,
+    lastAnchorId: String(nextId || ""),
+    lastAnchorLabel: String(nextLabel || ""),
+  };
+  persistUiState();
+  syncResumeLinks();
 }
 
 function isMobileViewport() {
@@ -579,6 +634,55 @@ function getGroupedCaseSections(data) {
   return grouped;
 }
 
+function filterGroupedSectionsByTheme(data, grouped, theme = "") {
+  if (!theme) {
+    return grouped;
+  }
+
+  const filtered = Object.fromEntries(
+    Object.entries(grouped).map(([kind, sections]) => [
+      kind,
+      sections.filter((section) =>
+        section.cases.some((card) => extractThemeLabel(card.marketContext) === theme)
+      ),
+    ])
+  );
+
+  const hasAny = Object.values(filtered).some((sections) => sections.length);
+  return hasAny ? filtered : grouped;
+}
+
+function pickWorkbenchItems(primary = [], fallback = [], limit = 3) {
+  const primaryItems = Array.isArray(primary) ? primary : [];
+  const fallbackItems = Array.isArray(fallback) ? fallback : [];
+  const source = primaryItems.length ? primaryItems : fallbackItems;
+  return source.slice(0, limit);
+}
+
+function getTodayWorkbenchData(data) {
+  const grouped = getGroupedCaseSections(data);
+  const todayTheme = getTodayTheme(data);
+  const themeButtons = (data.cases.topThemes || []).slice(0, 6);
+  const themedGrouped = filterGroupedSectionsByTheme(data, grouped, todayTheme);
+  const mustItems = pickWorkbenchItems(themedGrouped.must, grouped.must, 3);
+  const avoidItems = pickWorkbenchItems(themedGrouped.avoid, grouped.avoid, 3);
+  const tomorrowItems = pickWorkbenchItems(
+    [...themedGrouped.best, ...themedGrouped.can],
+    [...grouped.best, ...grouped.can],
+    3
+  );
+
+  return {
+    todayTheme,
+    themeButtons,
+    grouped,
+    themedGrouped,
+    mustItems,
+    avoidItems,
+    tomorrowItems,
+  };
+}
+
 function getProgressStats(data) {
   const totalCards = data.basics.slideCount + data.cases.slideCount;
   const cards = Object.values(studyState.cards || {});
@@ -602,31 +706,215 @@ function renderMetrics(data) {
   document.querySelector("#cases-stat").innerHTML = `<strong>${escapeHtml(String(data.cases.slideCount))}</strong><span>页案例内容</span>`;
 }
 
+function trimLabel(value = "", maxLength = 14) {
+  const text = String(value || "").trim();
+  if (!text) {
+    return "";
+  }
+  return text.length > maxLength ? `${text.slice(0, Math.max(0, maxLength - 1))}…` : text;
+}
+
+function describeAnchor(anchorId = "") {
+  const node = document.getElementById(anchorId);
+  if (!node) {
+    return "";
+  }
+
+  const selectors = [".case-title", ".section-head h2", ".section-heading h2", ".panel-head h2", "h2", "h3"];
+  for (const selector of selectors) {
+    const labelNode = node.matches(selector) ? node : node.querySelector(selector);
+    const label = labelNode?.textContent?.trim();
+    if (label) {
+      return label;
+    }
+  }
+
+  return anchorId.replace(/^card-/, "");
+}
+
+function rememberLastAnchor(anchorId = "") {
+  if (!anchorId || isRestoringSavedAnchor) {
+    return;
+  }
+
+  const label = describeAnchor(anchorId) || getLastAnchor().label || "";
+  const currentAnchor = getLastAnchor();
+  if (currentAnchor.id === anchorId && currentAnchor.label === label) {
+    return;
+  }
+
+  setLastAnchor(anchorId, label);
+}
+
+function syncResumeLinks() {
+  const resume = getLastAnchor();
+  const hasResume = Boolean(resume.id);
+
+  document.querySelectorAll('[data-role="resume-link"]').forEach((link) => {
+    if (!(link instanceof HTMLAnchorElement)) {
+      return;
+    }
+
+    if (!hasResume) {
+      link.hidden = true;
+      link.classList.add("is-hidden");
+      return;
+    }
+
+    link.hidden = false;
+    link.classList.remove("is-hidden");
+    link.href = `#${resume.id}`;
+    link.textContent = resume.label ? `继续上次 · ${trimLabel(resume.label, 14)}` : "继续上次";
+  });
+}
+
+function restoreSavedAnchor() {
+  if (window.location.hash) {
+    syncResumeLinks();
+    return;
+  }
+
+  const resume = getLastAnchor();
+  const target = resume.id ? document.getElementById(resume.id) : null;
+  if (!target) {
+    syncResumeLinks();
+    return;
+  }
+
+  isRestoringSavedAnchor = true;
+  window.requestAnimationFrame(() => {
+    target.scrollIntoView({ behavior: "auto", block: "start" });
+    window.setTimeout(() => {
+      isRestoringSavedAnchor = false;
+      rememberLastAnchor(resume.id);
+    }, 180);
+  });
+}
+
+function renderHeroActions(data) {
+  const reviewTemplateTargets = findReviewTemplateTargets(data);
+  const reviewTarget = reviewTemplateTargets[0] ? `#card-${reviewTemplateTargets[0]}` : "#part-basics";
+  const resume = getLastAnchor();
+  const root = document.querySelector("#hero-actions");
+  if (!root) {
+    return;
+  }
+
+  root.innerHTML = `
+    <a class="part-chip part-chip-primary" href="#daily-entry">今日复盘入口</a>
+    <a class="part-chip part-chip-strong" href="#cases-group-must">今日一定要做</a>
+    <a class="part-chip part-chip-muted" href="#cases-group-avoid">今日禁做</a>
+    <a class="part-chip" href="#part-basics">第一部分</a>
+    <a class="part-chip" href="#part-cases">第二部分</a>
+    <a
+      class="part-chip part-chip-resume ${resume.id ? "" : "is-hidden"}"
+      href="${resume.id ? `#${escapeHtml(resume.id)}` : "#top"}"
+      id="hero-resume-link"
+      data-role="resume-link"
+      ${resume.id ? "" : "hidden"}
+    >${escapeHtml(resume.label ? `继续上次 · ${trimLabel(resume.label, 14)}` : "继续上次")}</a>
+    <a class="part-chip" href="${escapeHtml(reviewTarget)}" id="hero-review-link">直达复盘模板</a>
+  `;
+}
+
 function renderWorkspaceSummary(data) {
   const stats = getProgressStats(data);
+  const workbench = getTodayWorkbenchData(data);
+  const resume = getLastAnchor();
   const root = document.querySelector("#workspace-summary");
   root.innerHTML = `
-    <p class="panel-label">今日复盘主线</p>
-    <div class="hero-note-block">
-      <h3>先把今天的动作顺序固定下来</h3>
-      <ol class="hero-steps">
-        <li><strong>先开筛选台</strong>，缩小到今天真正要看的题材、形态和案例范围。</li>
-        <li><strong>先看第一部分</strong>，统一读盘语言、仓位和卖点框架。</li>
-        <li><strong>第二部分先看禁做 / 一定要做</strong>，再深入具体案例。</li>
-        <li><strong>看到关键卡片就留判断</strong>，不要只看图不写结论。</li>
-      </ol>
+    <p class="panel-label">今日工作台</p>
+    <div class="hero-note-block workbench-head">
+      <h3>先定今天主看什么，再定今天不做什么</h3>
+      <div class="theme-preset-row">
+        ${workbench.themeButtons
+          .map(
+            (topic) => `
+              <button
+                type="button"
+                class="theme-preset-chip ${workbench.todayTheme === topic.name ? "is-active" : ""}"
+                data-action="set-today-theme"
+                data-theme="${escapeHtml(topic.name)}"
+              >
+                ${escapeHtml(topic.name)}
+              </button>
+            `
+          )
+          .join("")}
+      </div>
+      <div class="quick-links">
+        <button type="button" class="mini-link subtle-button" data-action="apply-today-theme">只看这个题材</button>
+        <a class="mini-link" href="#cases-playbook">直达五类清单</a>
+        ${
+          resume.id
+            ? `<a class="mini-link" href="#${escapeHtml(resume.id)}">继续上次 · ${escapeHtml(trimLabel(resume.label, 10) || "回到上次位置")}</a>`
+            : ""
+        }
+      </div>
     </div>
+
+    <div class="workspace-brief-grid">
+      <article class="workspace-brief-card">
+        <span class="workspace-brief-label">今日主看题材</span>
+        <strong>${escapeHtml(workbench.todayTheme || "先选一个题材")}</strong>
+        <p>今天优先围绕这个题材看结构、看前排、看承接。</p>
+      </article>
+      <article class="workspace-brief-card">
+        <span class="workspace-brief-label">今日一定要做</span>
+        <strong>${escapeHtml(workbench.mustItems[0]?.name || "先看标准强势形")}</strong>
+        <p>${escapeHtml(workbench.mustItems.length)} 个优先模型，先从前排标准形开始刷。</p>
+      </article>
+      <article class="workspace-brief-card">
+        <span class="workspace-brief-label">今日禁做</span>
+        <strong>${escapeHtml(workbench.avoidItems[0]?.name || "先看禁做错形")}</strong>
+        <p>先把今天最容易犯错的形态刻进脑子，再谈执行。</p>
+      </article>
+      <article class="workspace-brief-card">
+        <span class="workspace-brief-label">今日状态</span>
+        <strong>${escapeHtml(String(stats.reviewedCount))} / ${escapeHtml(String(stats.totalCards))}</strong>
+        <p>已复盘 ${escapeHtml(String(stats.reviewedCount))} 张，有批注 ${escapeHtml(String(stats.notedCount))} 张。</p>
+      </article>
+    </div>
+
+    <div class="workspace-board">
+      <article class="workspace-board-column">
+        <span class="workspace-brief-label">今天做什么</span>
+        <div class="workbench-link-grid">
+          ${workbench.mustItems
+            .map((section) => `<a class="mini-link" href="#${escapeHtml(section.id)}">${escapeHtml(section.name)}</a>`)
+            .join("") || `<span class="workbench-tag">先看一定要做清单</span>`}
+        </div>
+      </article>
+      <article class="workspace-board-column">
+        <span class="workspace-brief-label">今天不做什么</span>
+        <div class="workbench-link-grid">
+          ${workbench.avoidItems
+            .map((section) => `<a class="mini-link" href="#${escapeHtml(section.id)}">${escapeHtml(section.name)}</a>`)
+            .join("") || `<span class="workbench-tag">先看禁做清单</span>`}
+        </div>
+      </article>
+      <article class="workspace-board-column">
+        <span class="workspace-brief-label">明天看什么</span>
+        <div class="workbench-link-grid">
+          ${workbench.tomorrowItems
+            .map((section) => `<a class="mini-link" href="#${escapeHtml(section.id)}">${escapeHtml(section.name)}</a>`)
+            .join("") || `<span class="workbench-tag">优先看最好要做 / 可以做</span>`}
+        </div>
+      </article>
+    </div>
+
     <div class="workspace-stats">
-      <article><strong>${escapeHtml(String(stats.reviewedCount))}</strong><span>已复盘卡片</span></article>
-      <article><strong>${escapeHtml(String(stats.notedCount))}</strong><span>有备注卡片</span></article>
-      <article><strong>${escapeHtml(String(stats.taggedCount))}</strong><span>已打标签卡片</span></article>
-      <article><strong>${escapeHtml(String(stats.totalCards))}</strong><span>总卡片数</span></article>
+      <article><strong>${escapeHtml(String(stats.reviewedCount))}</strong><span>已复盘</span></article>
+      <article><strong>${escapeHtml(String(stats.notedCount))}</strong><span>有备注</span></article>
+      <article><strong>${escapeHtml(String(stats.taggedCount))}</strong><span>有标签</span></article>
+      <article><strong>${escapeHtml(String(stats.totalCards))}</strong><span>总卡片</span></article>
     </div>
   `;
 }
 
 function renderDailyEntry(data) {
   const reviewTemplateCards = findReviewTemplateTargets(data);
+  const resume = getLastAnchor();
   const root = document.querySelector("#daily-entry-grid");
   root.innerHTML = [
     {
@@ -635,6 +923,7 @@ function renderDailyEntry(data) {
       links: [
         { label: "打开筛选台", href: "#search-workbench" },
         { label: "五类清单", href: "#cases-playbook" },
+        ...(resume.id ? [{ label: `继续上次 · ${trimLabel(resume.label, 12) || "回到上次位置"}`, href: `#${resume.id}` }] : []),
       ],
     },
     {
@@ -669,7 +958,7 @@ function renderDailyEntry(data) {
 }
 
 function renderHeroSupport(data) {
-  const grouped = getGroupedCaseSections(data);
+  const workbench = getTodayWorkbenchData(data);
   const workflowCard = document.querySelector("#workflow-card");
   const mustCard = document.querySelector("#must-card");
   const avoidCard = document.querySelector("#avoid-card");
@@ -687,17 +976,17 @@ function renderHeroSupport(data) {
 
   mustCard.innerHTML = `
     <span class="kicker">一定要做</span>
-    <h3>优先刷这些模型</h3>
+    <h3>${escapeHtml(workbench.todayTheme || "今日优先模型")}</h3>
     <div class="support-chips">
-      ${grouped.must.slice(0, 4).map((section) => `<a class="mini-link" href="#${escapeHtml(section.id)}">${escapeHtml(section.name)}</a>`).join("")}
+      ${workbench.mustItems.map((section) => `<a class="mini-link" href="#${escapeHtml(section.id)}">${escapeHtml(section.name)}</a>`).join("") || `<a class="mini-link" href="#cases-group-must">看一定要做清单</a>`}
     </div>
   `;
 
   avoidCard.innerHTML = `
     <span class="kicker">禁做清单</span>
-    <h3>先把这些风险刻进脑子</h3>
+    <h3>今天先排除这些</h3>
     <div class="support-chips">
-      ${grouped.avoid.slice(0, 4).map((section) => `<a class="mini-link" href="#${escapeHtml(section.id)}">${escapeHtml(section.name)}</a>`).join("")}
+      ${workbench.avoidItems.map((section) => `<a class="mini-link" href="#${escapeHtml(section.id)}">${escapeHtml(section.name)}</a>`).join("") || `<a class="mini-link" href="#cases-group-avoid">看禁做清单</a>`}
     </div>
   `;
 
@@ -714,10 +1003,9 @@ function renderHeroSupport(data) {
 
   newbieCard.innerHTML = `
     <span class="kicker">快捷跳转</span>
-    <h3>先第一部分，再第二部分</h3>
+    <h3>今天主看 ${escapeHtml(workbench.todayTheme || "这个题材")}</h3>
     <div class="support-chips">
-      <a class="mini-link" href="#part-basics">第一部分</a>
-      <a class="mini-link" href="#${escapeHtml(data.basics.chapters[0].id)}">看导读</a>
+      <button type="button" class="mini-link subtle-button" data-action="apply-today-theme">按题材筛案例</button>
       <a class="mini-link" href="#part-cases">第二部分</a>
       <a class="mini-link" href="${reviewTemplateCards[0] ? `#card-${escapeHtml(reviewTemplateCards[0])}` : "#part-basics"}">复盘模板</a>
     </div>
@@ -1395,6 +1683,7 @@ function renderCaseShortcuts(data) {
   const hintRoot = document.querySelector("#case-view-hint");
   const grouped = getGroupedCaseSections(data);
   const mode = getCaseViewMode();
+  const currentGroup = getCurrentCaseGroup();
 
   document.querySelectorAll("[data-case-view]").forEach((button) => {
     button.classList.toggle("is-active", button.dataset.caseView === mode);
@@ -1431,26 +1720,20 @@ function renderCaseShortcuts(data) {
   groupBarRoot.innerHTML = `
     <div class="desk-jump-head">
       <span class="kicker">交易台快捷键</span>
-      <p>按 1-5 或直接点，马上切到五类清单。</p>
+      <p>当前：<strong id="current-group-label">${escapeHtml(PLAYBOOK_GROUPS.find((item) => item.kind === currentGroup)?.label || "一定要做")}</strong></p>
     </div>
     ${PLAYBOOK_GROUPS.map((group, index) => {
-      const items = grouped[group.kind] || [];
-      const slideTotal = items.reduce((sum, item) => sum + item.slideCount, 0);
       return `
         <button
           type="button"
-          class="group-jump-chip group-jump-${escapeHtml(group.kind)}"
+          class="group-jump-chip group-jump-${escapeHtml(group.kind)} ${currentGroup === group.kind && mode === "playbook" ? "is-current" : ""}"
           data-action="jump-group"
           data-group="${escapeHtml(group.kind)}"
           data-hotkey="${escapeHtml(String(index + 1))}"
           aria-label="${escapeHtml(`快捷键 ${index + 1}，跳到${group.label}`)}"
         >
           <span class="group-hotkey">${escapeHtml(String(index + 1).padStart(2, "0"))}</span>
-          <span class="group-copy">
-            <span>${escapeHtml(group.label)}</span>
-            <small>${escapeHtml(String(items.length))} 章 / ${escapeHtml(String(slideTotal))} 页</small>
-          </span>
-          <strong>${escapeHtml(String(slideTotal))}</strong>
+          <span class="group-copy">${escapeHtml(group.label)}</span>
         </button>
       `;
     }).join("")}
@@ -1562,7 +1845,9 @@ function updateProgressWidgets() {
     return;
   }
   renderMetrics(currentData);
+  renderHeroActions(currentData);
   renderWorkspaceSummary(currentData);
+  renderHeroSupport(currentData);
   renderAnnotationSummary(currentData);
 }
 
@@ -1666,6 +1951,35 @@ function wireFilterEvents() {
       document.querySelector("#theme-filter").value = button.dataset.topic || "all";
       applyFilters({ jump: true });
     });
+  });
+}
+
+function syncTodayThemeToFilters({ jump = true } = {}) {
+  if (!currentData) {
+    return;
+  }
+  const todayTheme = getTodayTheme(currentData);
+  const themeSelect = document.querySelector("#theme-filter");
+  if (themeSelect) {
+    themeSelect.value = todayTheme || "all";
+  }
+  applyFilters({ jump });
+}
+
+function wireWorkbenchEvents() {
+  document.addEventListener("click", (event) => {
+    const todayThemeButton = event.target.closest('[data-action="set-today-theme"]');
+    if (todayThemeButton && currentData) {
+      setTodayTheme(todayThemeButton.dataset.theme || "");
+      renderWorkspaceSummary(currentData);
+      renderHeroSupport(currentData);
+      return;
+    }
+
+    const applyTodayThemeButton = event.target.closest('[data-action="apply-today-theme"]');
+    if (applyTodayThemeButton && currentData) {
+      syncTodayThemeToFilters({ jump: true });
+    }
   });
 }
 
@@ -1889,6 +2203,10 @@ function wireSectionSpy() {
 
   sectionSpyObserver = new IntersectionObserver(
     (entries) => {
+      const visible = entries
+        .filter((entry) => entry.isIntersecting && byId.has(entry.target.id))
+        .sort((a, b) => Math.abs(a.boundingClientRect.top) - Math.abs(b.boundingClientRect.top))[0];
+
       entries.forEach((entry) => {
         const id = entry.target.id;
         if (!byId.has(id)) {
@@ -1896,6 +2214,10 @@ function wireSectionSpy() {
         }
         byId.get(id).forEach((link) => link.classList.toggle("is-active", entry.isIntersecting));
       });
+
+      if (visible) {
+        rememberLastAnchor(visible.target.id);
+      }
     },
     {
       rootMargin: "-20% 0px -60% 0px",
@@ -1914,6 +2236,8 @@ function renderCaseWorkspace(data) {
   renderCaseShortcuts(data);
   renderCases(data);
   wireSectionSpy();
+  wireCaseGroupSpy();
+  updateGroupBarState();
 }
 
 function pulseGroupJumpChip(group) {
@@ -1923,6 +2247,61 @@ function pulseGroupJumpChip(group) {
   }
   button.classList.add("is-live");
   window.setTimeout(() => button.classList.remove("is-live"), 900);
+}
+
+function updateGroupBarState() {
+  const currentGroup = getCurrentCaseGroup();
+  const mode = getCaseViewMode();
+  const currentLabel = document.querySelector("#current-group-label");
+  const currentMeta = PLAYBOOK_GROUPS.find((item) => item.kind === currentGroup);
+
+  if (currentLabel) {
+    currentLabel.textContent = mode === "playbook" ? currentMeta?.label || "一定要做" : "PPT 模式";
+  }
+
+  document.querySelectorAll(".group-jump-chip").forEach((button) => {
+    const isCurrent = mode === "playbook" && button.dataset.group === currentGroup;
+    button.classList.toggle("is-current", isCurrent);
+  });
+}
+
+function wireCaseGroupSpy() {
+  if (caseGroupSpyObserver) {
+    caseGroupSpyObserver.disconnect();
+  }
+
+  if (getCaseViewMode() !== "playbook") {
+    return;
+  }
+
+  const sections = Array.from(document.querySelectorAll('.bucket-section[id^="cases-group-"]'));
+  if (!sections.length) {
+    return;
+  }
+
+  caseGroupSpyObserver = new IntersectionObserver(
+    (entries) => {
+      const visible = entries
+        .filter((entry) => entry.isIntersecting)
+        .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+
+      if (!visible) {
+        return;
+      }
+
+      const nextGroup = visible.target.id.replace("cases-group-", "");
+      if (nextGroup && nextGroup !== getCurrentCaseGroup()) {
+        setCurrentCaseGroup(nextGroup);
+        updateGroupBarState();
+      }
+    },
+    {
+      rootMargin: "-15% 0px -68% 0px",
+      threshold: [0.2, 0.45, 0.7],
+    }
+  );
+
+  sections.forEach((section) => caseGroupSpyObserver.observe(section));
 }
 
 function jumpToCaseGroup(group) {
@@ -1936,12 +2315,23 @@ function jumpToCaseGroup(group) {
     applyFilters();
   }
 
+  setCurrentCaseGroup(group);
+  updateGroupBarState();
   pulseGroupJumpChip(group);
+  rememberLastAnchor(`cases-group-${group}`);
   document.querySelector(`#cases-group-${CSS.escape(group)}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 function wireCaseViewEvents() {
   document.addEventListener("click", (event) => {
+    const anchor = event.target.closest('a[href^="#"]');
+    if (anchor instanceof HTMLAnchorElement) {
+      const anchorId = decodeURIComponent((anchor.getAttribute("href") || "").slice(1));
+      if (anchorId) {
+        window.setTimeout(() => rememberLastAnchor(anchorId), 0);
+      }
+    }
+
     const toggle = event.target.closest("[data-case-view]");
     if (toggle && currentData) {
       const nextMode = toggle.dataset.caseView || "playbook";
@@ -1993,6 +2383,7 @@ function init() {
   currentData = data;
 
   renderMetrics(data);
+  renderHeroActions(data);
   renderWorkspaceSummary(data);
   renderDailyEntry(data);
   renderHeroSupport(data);
@@ -2006,20 +2397,17 @@ function init() {
   renderCaseWorkspace(data);
   renderAnnotationSummary(data);
 
-  const reviewTemplateTargets = findReviewTemplateTargets(data);
-  const heroReviewLink = document.querySelector("#hero-review-link");
-  if (heroReviewLink && reviewTemplateTargets[0]) {
-    heroReviewLink.setAttribute("href", `#card-${reviewTemplateTargets[0]}`);
-  }
-
   wireLightbox();
   wireTopbar();
   wireSidebar();
   wireFilterEvents();
+  wireWorkbenchEvents();
   wireAnnotationEvents();
   wireCaseViewEvents();
 
   applyFilters();
+  syncResumeLinks();
+  restoreSavedAnchor();
 }
 
 init();
