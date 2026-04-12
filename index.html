@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>超全竞价 - 无敌</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="page-shell">
+    <header class="topbar">
+      <div class="topbar-brand">
+        <span class="eyebrow">集合竞价 · 实战复盘工具</span>
+        <strong>超全竞价 - 无敌</strong>
+      </div>
+      <nav class="topbar-nav">
+        <a class="topbar-link" href="#search-workbench" data-spy-link="search-workbench">搜索筛选</a>
+        <a class="topbar-link" href="#part-basics" data-spy-link="part-basics">第一部分</a>
+        <a class="topbar-link" href="#part-cases" data-spy-link="part-cases">第二部分</a>
+        <a class="topbar-link" href="#cases-playbook" data-spy-link="cases-playbook">五大清单</a>
+      </nav>
+      <button class="menu-toggle" id="menu-toggle" type="button" aria-expanded="false" aria-controls="sidebar">
+        目录与筛选
+      </button>
+    </header>
+
+    <header class="hero" id="top">
+      <div class="hero-main">
+        <span class="eyebrow">先学基础，再刷案例，但整个页面更偏你自己的每日实战复盘</span>
+        <h1>把讲义、案例、清单和本地批注，收进同一个交易工作台</h1>
+        <p class="hero-summary">
+          第一部分承接《集合竞价交易认知与实战要点》，负责把读盘语言、竞价规则、仓位和买卖点框架打牢。
+          第二部分承接《接力战法 - 集合竞价案例教学》，默认先按“禁做 / 一定要做 / 最好要做 / 可以做 / 慎做”来刷，再回到 PPT 章节逐页对图复盘。
+        </p>
+        <div class="hero-actions">
+          <a class="part-chip" href="#search-workbench">先开筛选台</a>
+          <a class="part-chip" href="#part-basics">先刷基础</a>
+          <a class="part-chip" href="#part-cases">再刷案例</a>
+          <a class="part-chip" href="#part-basics" id="hero-review-link">直达复盘模板</a>
+        </div>
+        <div class="hero-metrics" id="hero-metrics"></div>
+      </div>
+
+      <aside class="hero-panel" id="workspace-summary"></aside>
+
+      <div class="hero-support-grid">
+        <section class="hero-support-card" id="workflow-card"></section>
+        <section class="hero-support-card" id="must-card"></section>
+        <section class="hero-support-card" id="avoid-card"></section>
+        <section class="hero-support-card" id="mantra-card"></section>
+        <section class="hero-support-card" id="newbie-card"></section>
+      </div>
+    </header>
+
+    <div class="content-layout">
+      <aside class="sidebar" id="sidebar">
+        <div class="sidebar-inner">
+          <div class="sidebar-mobile-head">
+            <strong>目录与筛选</strong>
+            <button class="subtle-button sidebar-close" id="sidebar-close" type="button">关闭</button>
+          </div>
+
+          <section class="panel-card search-card" id="search-workbench">
+            <div class="panel-head">
+              <span class="kicker">搜索筛选</span>
+              <h2>组合筛选台</h2>
+            </div>
+
+            <label class="field-label" for="search-input">关键词搜索</label>
+            <input id="search-input" type="search" placeholder="搜题材、个股、形态、弱转强、竞昨比、你的批注内容">
+
+            <div class="filter-toolbar">
+              <button class="subtle-button" id="jump-first" type="button">跳到首个结果</button>
+              <button class="subtle-button" id="filter-reset" type="button">重置筛选</button>
+            </div>
+            <p id="result-count" class="result-count"></p>
+
+            <div class="filter-group-stack">
+              <div class="filter-block">
+                <span class="field-label">范围</span>
+                <div class="chip-row" id="scope-filter"></div>
+              </div>
+
+              <div class="filter-block">
+                <span class="field-label">清单标签</span>
+                <div class="chip-row" id="playbook-filter"></div>
+              </div>
+
+              <div class="filter-block">
+                <label class="field-label" for="theme-filter">题材 / 板块</label>
+                <select id="theme-filter"></select>
+              </div>
+
+              <div class="filter-block">
+                <label class="field-label" for="pattern-filter">形态关键词</label>
+                <select id="pattern-filter"></select>
+              </div>
+
+              <div class="filter-block">
+                <span class="field-label">批注状态</span>
+                <div class="chip-row" id="annotation-filter"></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel-card search-card">
+            <div class="panel-head compact">
+              <span class="kicker">本地批注</span>
+              <h3>你的复盘进度</h3>
+            </div>
+            <div class="annotation-summary" id="annotation-summary"></div>
+          </section>
+
+          <section class="panel-card search-card">
+            <div class="panel-head compact">
+              <span class="kicker">热门题材</span>
+              <h3>点击即筛</h3>
+            </div>
+            <div class="topic-cloud" id="topic-cloud"></div>
+          </section>
+
+          <nav class="toc panel-card" id="basics-toc"></nav>
+          <nav class="toc panel-card" id="cases-toc"></nav>
+        </div>
+      </aside>
+
+      <button class="sidebar-backdrop" id="sidebar-backdrop" type="button" aria-hidden="true"></button>
+
+      <main class="main-content">
+        <section class="overview-card" id="daily-entry">
+          <div class="section-heading compact">
+            <span class="kicker">今日入口</span>
+            <h2>先定节奏，再进内容</h2>
+            <p>这块不强调展示感，强调你每天打开以后知道先做什么、再看什么、最后落在哪几个输入框里。</p>
+          </div>
+          <div class="overview-grid" id="daily-entry-grid"></div>
+        </section>
+
+        <section class="part-block" id="part-basics">
+          <div class="part-header">
+            <div>
+              <span class="section-number">Part 01</span>
+              <h2>基础知识与基本要点</h2>
+              <p class="section-summary">
+                保留卡片流阅读方式，先把竞价底层语言、规则、仓位、卖点流程和模式识别框架统一起来，再去刷案例。
+              </p>
+            </div>
+            <div class="section-stat" id="basics-stat"></div>
+          </div>
+
+          <section class="mantra-block part-inner">
+            <div class="section-heading compact">
+              <span class="kicker">浓缩规则</span>
+              <h2>优化后的竞价口诀</h2>
+              <p>保留你的原逻辑，但把它变成更适合日常复盘、快速回忆和临盘调用的结构化版本。</p>
+            </div>
+            <div class="mantra-grid" id="mantra-grid"></div>
+            <div class="execution-board">
+              <div class="execution-copy">
+                <span class="kicker">执行顺序</span>
+                <h3>开盘前后只按这一条链路看</h3>
+                <p>
+                  先看试盘，再看真实抛压；再结合竞昨比、题材强度、个股身位和盘中换手质量，
+                  最后只做最标准、最靠前、最值得拿先手的那一批。
+                </p>
+              </div>
+              <ol class="execution-list" id="execution-list"></ol>
+            </div>
+          </section>
+
+          <section class="question-board part-inner">
+            <div class="section-heading compact">
+              <span class="kicker">交易细则</span>
+              <h2>买点、卖点与仓位框架</h2>
+              <p>把仓位改成更明确的阶梯比例，同时保留你强调的“当日一字板可加仓、最先上板给更大权重”的思路。</p>
+            </div>
+            <div class="question-grid" id="detail-grid"></div>
+          </section>
+
+          <section class="question-board part-inner">
+            <div class="section-heading compact">
+              <span class="kicker">卖点流程</span>
+              <h2>“次日冲高兑现”拆成更细的执行图</h2>
+              <p>把次日竞价、开盘第一波冲高、继续上冲、留底仓和转弱退出都拆成顺序动作，避免只记一句口号。</p>
+            </div>
+            <div class="flow-grid" id="sell-flow-grid"></div>
+          </section>
+
+          <section class="question-board part-inner">
+            <div class="section-heading compact">
+              <span class="kicker">术语页</span>
+              <h2>先把这些词看懂，再去刷 PPT</h2>
+              <p>这块就是给你自己做日常口径统一，避免临盘时同一个意思在脑子里反复换说法。</p>
+            </div>
+            <div class="question-grid" id="glossary-grid"></div>
+          </section>
+
+          <section class="content-sections" id="basics-sections"></section>
+        </section>
+
+        <section class="part-block" id="part-cases">
+          <div class="part-header">
+            <div>
+              <span class="section-number">Part 02</span>
+              <h2>案例教学库</h2>
+              <p class="section-summary">
+                默认先按五大清单刷案例，再回到 PPT 章节顺序逐页看图；每张案例卡都能写本地小复盘，适合你自己每天训练。
+              </p>
+            </div>
+            <div class="section-stat" id="cases-stat"></div>
+          </div>
+
+          <section class="question-board part-inner" id="cases-playbook">
+            <div class="section-heading compact">
+              <span class="kicker">默认入口</span>
+              <h2>先看统计和快捷跳转，再切到你要的案例视图</h2>
+              <p>现在第二部分改成两种真视图：默认按五大清单直接刷；需要对照原课件时，再一键切回 PPT 章节顺序。</p>
+            </div>
+            <div class="cases-toolbar">
+              <div class="view-switch" id="case-view-switch" aria-label="案例视图切换">
+                <button class="view-toggle" type="button" data-case-view="playbook">清单模式</button>
+                <button class="view-toggle" type="button" data-case-view="sections">PPT 模式</button>
+              </div>
+              <p class="view-hint" id="case-view-hint"></p>
+            </div>
+            <div class="mode-links">
+              <a class="part-chip" href="#cases-playbook">回到视图切换</a>
+              <a class="part-chip" href="#cases-sections">直达案例内容区</a>
+            </div>
+            <div class="shortcut-grid" id="cases-shortcuts"></div>
+            <div class="bucket-grid" id="cases-buckets"></div>
+            <div class="outline-grid hidden" id="cases-outline"></div>
+          </section>
+
+          <section class="content-sections" id="cases-sections"></section>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <nav class="mobile-dock" aria-label="手机快捷导航">
+    <button class="mobile-dock-button" id="mobile-filter-toggle" type="button">筛选</button>
+    <a class="mobile-dock-button" href="#part-basics">基础</a>
+    <a class="mobile-dock-button" href="#part-cases">案例</a>
+    <a class="mobile-dock-button" href="#top">顶部</a>
+  </nav>
+
+  <dialog class="lightbox" id="lightbox">
+    <button class="lightbox-close" id="lightbox-close" type="button">关闭</button>
+    <div class="lightbox-meta">
+      <p id="lightbox-title"></p>
+      <p id="lightbox-caption"></p>
+    </div>
+    <img id="lightbox-image" alt="幻灯片大图">
+  </dialog>
+
+  <script src="./assets/course-data.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>

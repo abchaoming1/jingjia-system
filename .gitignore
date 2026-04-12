@@ -1,0 +1,16 @@
+__pycache__/
+.netlify/
+*.log
+*.err.log
+*.png
+*.html
+!index.html
+!assets/course-data.js
+!assets/slides/
+!assets/slides/slide-*.png
+!assets/basics-slides/
+!assets/basics-slides/slide-*.png
+
+assets/slides/幻灯片*.PNG
+assets/basics-slides/幻灯片*.PNG
+edge-test-dom.txt
