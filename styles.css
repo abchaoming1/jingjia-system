@@ -560,8 +560,8 @@ body::after {
 
 .content-layout {
   display: grid;
-  grid-template-columns: 320px minmax(0, 1fr);
-  gap: 22px;
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: 18px;
   margin-top: 22px;
   align-items: start;
 }
@@ -575,11 +575,15 @@ body::after {
 
 .sidebar-inner {
   display: grid;
-  gap: 16px;
+  gap: 14px;
   max-height: inherit;
   overflow-y: auto;
   padding-right: 6px;
   scrollbar-gutter: stable;
+}
+
+.sidebar .panel-card {
+  padding: 18px;
 }
 
 .sidebar-mobile-head {
@@ -1353,11 +1357,36 @@ body::after {
 }
 
 .section-cluster .case-study-card {
-  grid-template-columns: minmax(0, 1.9fr) minmax(280px, 0.85fr);
+  grid-template-columns: 1fr;
 }
 
 .section-cluster .case-study-card .thumb-button img {
-  min-height: 460px;
+  height: auto;
+  min-height: 0;
+  padding: 12px;
+  aspect-ratio: 16 / 9;
+}
+
+.section-cluster .case-study-card .thumb-button {
+  height: auto;
+}
+
+.section-cluster .case-study-card .card-body {
+  gap: 12px;
+  padding: 18px;
+}
+
+.section-cluster .case-study-card .case-title {
+  font-size: 1.2rem;
+  line-height: 1.32;
+}
+
+.section-cluster .case-study-card .case-context {
+  -webkit-line-clamp: 4;
+}
+
+.section-cluster .case-study-card .case-points {
+  font-size: 15px;
 }
 
 .card-body {
