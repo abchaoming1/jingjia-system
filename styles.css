@@ -305,6 +305,44 @@ body::after {
   font-size: 15px;
 }
 
+.premise-callout {
+  display: grid;
+  gap: 8px;
+  margin-top: 16px;
+  padding: 16px 18px;
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(179, 75, 49, 0.18);
+  background: linear-gradient(180deg, rgba(255, 249, 244, 0.92), rgba(250, 240, 232, 0.88));
+}
+
+.premise-callout strong {
+  color: var(--ink);
+  font-size: 1.02rem;
+  line-height: 1.45;
+}
+
+.premise-callout p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.premise-callout-hero {
+  max-width: 56ch;
+}
+
+.premise-label {
+  display: inline-flex;
+  width: fit-content;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(179, 75, 49, 0.1);
+  color: var(--accent-deep);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
 .hero-actions {
   display: flex;
   flex-wrap: wrap;
