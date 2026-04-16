@@ -213,9 +213,17 @@ body::after {
 }
 
 .topbar-fold-toggle {
-  display: none;
+  display: inline-flex;
   font: inherit;
   cursor: pointer;
+}
+
+body.topbar-collapsed .topbar {
+  gap: 0;
+}
+
+body.topbar-collapsed .topbar-nav {
+  display: none;
 }
 
 .eyebrow,
@@ -949,6 +957,10 @@ body::after {
   background: linear-gradient(135deg, rgba(179, 75, 49, 0.95), rgba(140, 53, 31, 1));
   color: #fff8f2;
   text-align: right;
+}
+
+.section-stat-neutral {
+  background: linear-gradient(135deg, rgba(65, 80, 70, 0.92), rgba(41, 52, 45, 1));
 }
 
 .section-stat strong {
@@ -1922,18 +1934,6 @@ body::after {
     overflow-x: auto;
     flex-wrap: nowrap;
     padding-bottom: 2px;
-  }
-
-  .topbar-fold-toggle {
-    display: inline-flex;
-  }
-
-  body.topbar-collapsed .topbar {
-    gap: 0;
-  }
-
-  body.topbar-collapsed .topbar-nav {
-    display: none;
   }
 
   .hero,

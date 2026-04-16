@@ -350,6 +350,7 @@ function defaultCardState() {
 function defaultUiState() {
   return {
     caseView: "playbook",
+    topbarCollapsed: true,
     mobileTopbarCollapsed: true,
     todayTheme: "",
     currentCaseGroup: "must",
@@ -484,13 +485,14 @@ function isMobileViewport() {
 }
 
 function getMobileTopbarCollapsed() {
-  return isMobileViewport() ? uiState.mobileTopbarCollapsed !== false : false;
+  return uiState.topbarCollapsed !== false;
 }
 
 function setMobileTopbarCollapsed(nextValue) {
   uiState = {
     ...defaultUiState(),
     ...uiState,
+    topbarCollapsed: Boolean(nextValue),
     mobileTopbarCollapsed: Boolean(nextValue),
   };
   persistUiState();
@@ -806,6 +808,7 @@ function renderHeroActions(data) {
     <a class="part-chip part-chip-muted" href="#cases-group-avoid">今日禁做</a>
     <a class="part-chip" href="#part-basics">第一部分</a>
     <a class="part-chip" href="#part-cases">第二部分</a>
+    <a class="part-chip" href="#part-third">第三部分</a>
     <a
       class="part-chip part-chip-resume ${resume.id ? "" : "is-hidden"}"
       href="${resume.id ? `#${escapeHtml(resume.id)}` : "#top"}"
@@ -1007,6 +1010,7 @@ function renderHeroSupport(data) {
     <div class="support-chips">
       <button type="button" class="mini-link subtle-button" data-action="apply-today-theme">按题材筛案例</button>
       <a class="mini-link" href="#part-cases">第二部分</a>
+      <a class="mini-link" href="#part-third">第三部分</a>
       <a class="mini-link" href="${reviewTemplateCards[0] ? `#card-${escapeHtml(reviewTemplateCards[0])}` : "#part-basics"}">复盘模板</a>
     </div>
   `;
@@ -2109,19 +2113,12 @@ function wireTopbar() {
   const syncTopbarState = () => {
     const collapsed = getMobileTopbarCollapsed();
     document.body.classList.toggle("topbar-collapsed", collapsed);
-    toggleButton.textContent = collapsed ? "展开顶部" : "收起顶部";
+    toggleButton.textContent = collapsed ? "展开导航" : "收起导航";
     toggleButton.setAttribute("aria-expanded", String(!collapsed));
     topbar.classList.toggle("is-collapsed", collapsed);
   };
 
   const applyResponsiveTopbar = () => {
-    if (!isMobileViewport()) {
-      document.body.classList.remove("topbar-collapsed");
-      topbar.classList.remove("is-collapsed");
-      toggleButton.textContent = "收起顶部";
-      toggleButton.setAttribute("aria-expanded", "true");
-      return;
-    }
     syncTopbarState();
   };
 
